@@ -11,10 +11,7 @@ export async function connectMongoDB() {
   try {
     const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/insurance_claims_files';
     
-    await mongoose.connect(mongoUri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(mongoUri);
 
     isConnected = true;
     console.log('✅ Connected to MongoDB database');

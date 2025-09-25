@@ -10,6 +10,7 @@ import { Server } from 'socket.io';
 import authRoutes from './routes/auth.js';
 import claimsRoutes from './routes/claims.js';
 import usersRoutes from './routes/users.js';
+import documentsRoutes from './routes/documents.js';
 
 // Import database connections
 import { connectPostgreSQL } from './config/postgres.js';
@@ -25,7 +26,7 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    origin: process.env.FRONTEND_URL || ["http://localhost:5173", "http://localhost:5174"],
     methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
@@ -43,7 +44,7 @@ const limiter = rateLimit({
 app.use(helmet());
 app.use(limiter);
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  origin: process.env.FRONTEND_URL || ["http://localhost:5173", "http://localhost:5174"],
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -55,10 +56,22 @@ app.use((req, res, next) => {
   next();
 });
 
+// Temporary middleware for MVP - provides default user
+const provideDefaultUser = (req, res, next) => {
+  // For MVP, use a default user
+  req.user = {
+    id: 1,
+    email: 'demo@example.com',
+    role: 'user'
+  };
+  next();
+};
+
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/claims', authenticateToken, claimsRoutes);
-app.use('/api/users', authenticateToken, usersRoutes);
+app.use('/api/claims', provideDefaultUser, claimsRoutes);
+app.use('/api/users', provideDefaultUser, usersRoutes);
+app.use('/api', provideDefaultUser, documentsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

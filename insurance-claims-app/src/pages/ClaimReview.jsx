@@ -1,53 +1,71 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useClaims } from '../contexts/AppContext';
 import ClaimCard from '../components/ClaimCard';
 
-export default function ClaimReview({ claims, onStatusChange }) {
+export default function ClaimReview() {
+  const { 
+    claims, 
+    filteredClaims, 
+    claimStats, 
+    loading, 
+    error, 
+    fetchClaims, 
+    updateClaimStatus, 
+    setFilter, 
+    filter,
+    clearError 
+  } = useClaims();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
 
-  // Filter and sort claims
-  const filteredClaims = useMemo(() => {
-    let filtered = claims.filter(claim => {
-      const matchesSearch = claim.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           claim.insuranceCompany.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (claim.claimNumber && claim.claimNumber.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesStatus = statusFilter === 'all' || claim.status === statusFilter;
-      return matchesSearch && matchesStatus;
+  // Load claims on component mount
+  useEffect(() => {
+    fetchClaims();
+  }, []);
+
+  // Handle status change
+  const handleStatusChange = async (id, status) => {
+    try {
+      await updateClaimStatus(id, status);
+    } catch (error) {
+      console.error('Error updating claim status:', error);
+    }
+  };
+
+  // Filter and sort claims locally (in addition to context filtering)
+  const displayClaims = useMemo(() => {
+    let filtered = filteredClaims.filter(claim => {
+      if (!searchTerm) return true;
+      
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        claim.full_name?.toLowerCase().includes(searchLower) ||
+        claim.insurance_company?.toLowerCase().includes(searchLower) ||
+        claim.claim_number?.toLowerCase().includes(searchLower) ||
+        claim.accident_location?.toLowerCase().includes(searchLower)
+      );
     });
 
     // Sort claims
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'newest':
-          return new Date(b.accidentDate || 0) - new Date(a.accidentDate || 0);
+          return new Date(b.accident_date || b.created_at || 0) - new Date(a.accident_date || a.created_at || 0);
         case 'oldest':
-          return new Date(a.accidentDate || 0) - new Date(b.accidentDate || 0);
+          return new Date(a.accident_date || a.created_at || 0) - new Date(b.accident_date || b.created_at || 0);
         case 'amount-high':
-          return (parseInt(b.damageAmount) || 0) - (parseInt(a.damageAmount) || 0);
+          return (parseFloat(b.damage_amount) || 0) - (parseFloat(a.damage_amount) || 0);
         case 'amount-low':
-          return (parseInt(a.damageAmount) || 0) - (parseInt(b.damageAmount) || 0);
+          return (parseFloat(a.damage_amount) || 0) - (parseFloat(b.damage_amount) || 0);
         case 'name':
-          return a.fullName.localeCompare(b.fullName);
+          return (a.full_name || '').localeCompare(b.full_name || '');
         default:
           return 0;
       }
     });
 
     return filtered;
-  }, [claims, searchTerm, statusFilter, sortBy]);
-
-  // Get statistics
-  const stats = useMemo(() => {
-    const total = claims.length;
-    const byStatus = claims.reduce((acc, claim) => {
-      acc[claim.status] = (acc[claim.status] || 0) + 1;
-      return acc;
-    }, {});
-    const totalAmount = claims.reduce((sum, claim) => sum + (parseInt(claim.damageAmount) || 0), 0);
-    
-    return { total, byStatus, totalAmount };
-  }, [claims]);
+  }, [filteredClaims, searchTerm, sortBy]);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -75,7 +93,7 @@ export default function ClaimReview({ claims, onStatusChange }) {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Claims</p>
-              <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">{stats.total}</p>
+              <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">{claimStats.total}</p>
             </div>
           </div>
         </div>
@@ -83,43 +101,41 @@ export default function ClaimReview({ claims, onStatusChange }) {
         <div className="bg-white rounded-lg shadow-xl border border-orange-100 p-6 transform hover:scale-105 transition-all">
           <div className="flex items-center">
             <div className="bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full p-3 shadow-lg">
-              <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Pending</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {(stats.byStatus.submitted || 0) + (stats.byStatus.reviewed || 0) + (stats.byStatus['in progress'] || 0)}
-              </p>
+              <p className="text-2xl font-bold text-orange-600">{claimStats.pending}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+        <div className="bg-white rounded-lg shadow-xl border border-green-100 p-6 transform hover:scale-105 transition-all">
           <div className="flex items-center">
-            <div className="bg-green-100 rounded-full p-3">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-full p-3 shadow-lg">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Completed</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.byStatus['paid out'] || 0}</p>
+              <p className="text-sm font-medium text-gray-600">Approved</p>
+              <p className="text-2xl font-bold text-green-600">{claimStats.approved}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+        <div className="bg-white rounded-lg shadow-xl border border-red-100 p-6 transform hover:scale-105 transition-all">
           <div className="flex items-center">
-            <div className="bg-indigo-100 rounded-full p-3">
-              <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+            <div className="bg-gradient-to-r from-red-500 to-pink-500 rounded-full p-3 shadow-lg">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Amount</p>
-              <p className="text-2xl font-bold text-gray-900">${stats.totalAmount.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-600">Rejected</p>
+              <p className="text-2xl font-bold text-red-600">{claimStats.rejected}</p>
             </div>
           </div>
         </div>
@@ -149,8 +165,8 @@ export default function ClaimReview({ claims, onStatusChange }) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Status</label>
             <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
               className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
             >
               <option value="all">All Status</option>
@@ -180,26 +196,59 @@ export default function ClaimReview({ claims, onStatusChange }) {
         </div>
       </div>
 
-      {/* Results Info */}
-      <div className="flex justify-between items-center mb-6">
-        <p className="text-gray-600">
-          Showing {filteredClaims.length} of {claims.length} claims
-        </p>
-        {searchTerm && (
+      {/* Error Message */}
+      {error && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <h3 className="font-medium text-red-800">Error loading claims</h3>
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          </div>
           <button
-            onClick={() => setSearchTerm('')}
-            className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1"
+            onClick={clearError}
+            className="text-red-400 hover:text-red-600"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-            <span>Clear search</span>
           </button>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-16">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <span className="ml-3 text-gray-600">Loading claims...</span>
+        </div>
+      )}
+
+      {/* Results Info */}
+      {!loading && (
+        <div className="flex justify-between items-center mb-6">
+          <p className="text-gray-600">
+            Showing {displayClaims.length} of {claims.length} claims
+          </p>
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span>Clear search</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Claims List */}
-      {filteredClaims.length === 0 ? (
+      {!loading && displayClaims.length === 0 ? (
         <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-12 text-center">
           <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -215,11 +264,13 @@ export default function ClaimReview({ claims, onStatusChange }) {
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {filteredClaims.map(claim => (
-            <ClaimCard key={claim.id} claim={claim} onStatusChange={onStatusChange} />
-          ))}
-        </div>
+        !loading && (
+          <div className="space-y-6">
+            {displayClaims.map(claim => (
+              <ClaimCard key={claim.id} claim={claim} onStatusChange={handleStatusChange} />
+            ))}
+          </div>
+        )
       )}
     </div>
   );
