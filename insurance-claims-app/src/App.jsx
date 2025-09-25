@@ -19,13 +19,15 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-gray-100">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 via-cyan-50 to-green-50">
         <Navbar />
-        <Routes>
-          <Route path="/" element={<ClaimSubmission onSubmit={addClaim} />} />
-          <Route path="/review" element={<ClaimReview claims={claims} onStatusChange={updateClaimStatus} />} />
-          <Route path="/about" element={<About />} />
-        </Routes>
+        <main className="container mx-auto px-4 py-8 max-w-7xl">
+          <Routes>
+            <Route path="/" element={<ClaimSubmission onSubmit={addClaim} />} />
+            <Route path="/review" element={<ClaimReview claims={claims} onStatusChange={updateClaimStatus} />} />
+            <Route path="/about" element={<About />} />
+          </Routes>
+        </main>
       </div>
     </Router>
   );
