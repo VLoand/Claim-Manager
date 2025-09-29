@@ -1,5 +1,7 @@
 import { createContext, useContext, useReducer, useEffect } from 'react';
 import { authAPI, claimsAPI } from '../services/api.js';
+import socketService from '../services/socket.js';
+import { NotificationProvider, useNotifications } from './NotificationContext.jsx';
 
 // Create contexts
 const AuthContext = createContext();
@@ -88,7 +90,7 @@ export const AuthProvider = ({ children }) => {
   // Initialize auth state from localStorage
   useEffect(() => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('authToken') || localStorage.getItem('accessToken');
       const user = authAPI.getCurrentUser();
       
       if (token && user) {
@@ -98,6 +100,8 @@ export const AuthProvider = ({ children }) => {
       console.error('Error initializing auth state:', error);
       // Clear any corrupted data
       localStorage.removeItem('authToken');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
     }
   }, []);
@@ -150,7 +154,7 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// Claims Provider
+// Claims Provider with WebSocket Integration
 export const ClaimsProvider = ({ children }) => {
   const [state, dispatch] = useReducer(claimsReducer, {
     claims: [],
@@ -159,6 +163,47 @@ export const ClaimsProvider = ({ children }) => {
     pagination: null,
     filter: 'all' // all, pending, approved, rejected
   });
+
+  // Initialize WebSocket connection and listeners
+  useEffect(() => {
+    // Connect to WebSocket
+    const socket = socketService.connect();
+
+    // Set up real-time listeners
+    const unsubscribeStatusUpdate = socketService.on('claim-status-updated', (data) => {
+      console.log('🔄 Real-time claim status update:', data);
+      
+      // Update claim in state
+      dispatch({ 
+        type: 'UPDATE_CLAIM_STATUS', 
+        payload: { id: data.claimId, status: data.status } 
+      });
+    });
+
+    const unsubscribeClaimCreated = socketService.on('claim-created', (data) => {
+      console.log('🆕 Real-time new claim:', data);
+      
+      // Add claim to state if it's for current user or if user is admin
+      dispatch({ type: 'ADD_CLAIM', payload: data.claim });
+    });
+
+    const unsubscribeDocumentUploaded = socketService.on('document-uploaded', (data) => {
+      console.log('📄 Real-time document upload:', data);
+    });
+
+    // Connection status listener
+    const unsubscribeConnection = socketService.on('connection-status', (status) => {
+      console.log('🌐 Connection status:', status);
+    });
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribeStatusUpdate();
+      unsubscribeClaimCreated();  
+      unsubscribeDocumentUploaded();
+      unsubscribeConnection();
+    };
+  }, []);
 
   const fetchClaims = async (params = {}) => {
     dispatch({ type: 'FETCH_CLAIMS_START' });
@@ -230,16 +275,20 @@ export const ClaimsProvider = ({ children }) => {
   // Computed values - ensure claims is always an array
   const claimsArray = Array.isArray(state.claims) ? state.claims : [];
   
-  const filteredClaims = claimsArray.filter(claim => {
+  // Exclude completed claims from frontend display
+  const activeClaims = claimsArray.filter(claim => claim.status !== 'completed');
+  
+  const filteredClaims = activeClaims.filter(claim => {
     if (state.filter === 'all') return true;
     return claim.status === state.filter;
   });
 
   const claimStats = {
-    total: claimsArray.length,
-    pending: claimsArray.filter(c => c.status === 'pending').length,
-    approved: claimsArray.filter(c => c.status === 'approved').length,
-    rejected: claimsArray.filter(c => c.status === 'rejected').length,
+    total: activeClaims.length,
+    pending: activeClaims.filter(c => c.status === 'pending').length,
+    processing: activeClaims.filter(c => c.status === 'processing').length,
+    approved: activeClaims.filter(c => c.status === 'approved').length,
+    rejected: activeClaims.filter(c => c.status === 'rejected').length,
   };
 
   const value = {
@@ -279,13 +328,15 @@ export const useClaims = () => {
   return context;
 };
 
-// Combined provider for convenience
+// Combined provider for convenience with WebSocket notifications
 export const AppProviders = ({ children }) => {
   return (
-    <AuthProvider>
-      <ClaimsProvider>
-        {children}
-      </ClaimsProvider>
-    </AuthProvider>
+    <NotificationProvider>
+      <AuthProvider>
+        <ClaimsProvider>
+          {children}
+        </ClaimsProvider>
+      </AuthProvider>
+    </NotificationProvider>
   );
 };

@@ -63,6 +63,7 @@ router.post('/register', registerValidation, async (req, res) => {
         role: user.role,
         createdAt: user.created_at
       },
+      token: tokens.accessToken, // Legacy format for backwards compatibility
       ...tokens
     });
   } catch (error) {
@@ -128,6 +129,7 @@ router.post('/login', loginValidation, async (req, res) => {
         fullName: user.full_name,
         role: user.role
       },
+      token: tokens.accessToken, // Legacy format for backwards compatibility
       ...tokens
     });
   } catch (error) {
@@ -177,6 +179,7 @@ router.post('/refresh', async (req, res) => {
         fullName: user.full_name,
         role: user.role
       },
+      token: tokens.accessToken, // Legacy format for backwards compatibility
       ...tokens
     });
   } catch (error) {

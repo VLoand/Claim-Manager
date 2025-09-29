@@ -129,6 +129,14 @@ router.post('/claims/:claimId/documents', authenticateToken, upload.array('docum
   }
 });
 
+// Handle CORS preflight for documents endpoint
+router.options('/claims/:claimId/documents', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.sendStatus(200);
+});
+
 // Get documents for a claim
 router.get('/claims/:claimId/documents', authenticateToken, async (req, res) => {
   try {

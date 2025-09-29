@@ -10,10 +10,10 @@ class ApiError extends Error {
   }
 }
 
-// Helper function to make authenticated requests
-const makeRequest = async (endpoint, options = {}) => {
+// Helper function to make authenticated requests with automatic token refresh
+const makeRequest = async (endpoint, options = {}, isRetry = false) => {
   const url = `${API_BASE_URL}${endpoint}`;
-  const token = localStorage.getItem('authToken');
+  const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken');
   
   const config = {
     headers: {
@@ -24,7 +24,7 @@ const makeRequest = async (endpoint, options = {}) => {
   };
 
   // Add auth token if available and not a public endpoint
-  if (token && !endpoint.startsWith('/auth/login') && !endpoint.startsWith('/auth/register')) {
+  if (token && !endpoint.startsWith('/auth/login') && !endpoint.startsWith('/auth/register') && !endpoint.startsWith('/auth/refresh')) {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
@@ -41,6 +41,52 @@ const makeRequest = async (endpoint, options = {}) => {
     }
 
     if (!response.ok) {
+      // If we get a 401 and have a refresh token, try to refresh
+      if (response.status === 401 && !isRetry && localStorage.getItem('refreshToken') && !endpoint.startsWith('/auth/')) {
+        try {
+          console.log('🔄 Token expired, attempting refresh...');
+          // Call refresh endpoint directly to avoid circular dependency
+          const refreshToken = localStorage.getItem('refreshToken');
+          const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken })
+          });
+          
+          if (refreshResponse.ok) {
+            const refreshData = await refreshResponse.json();
+            console.log('✅ Token refresh successful');
+            
+            // Update tokens in localStorage
+            if (refreshData.token) {
+              localStorage.setItem('authToken', refreshData.token);
+              localStorage.setItem('user', JSON.stringify(refreshData.user));
+              
+              if (refreshData.accessToken) {
+                localStorage.setItem('accessToken', refreshData.accessToken);
+              }
+              if (refreshData.refreshToken) {
+                localStorage.setItem('refreshToken', refreshData.refreshToken);
+              }
+            }
+            
+            // Retry the original request with new token
+            return makeRequest(endpoint, options, true);
+          } else {
+            console.warn('❌ Token refresh failed with status:', refreshResponse.status);
+            const refreshErrorData = await refreshResponse.json().catch(() => ({}));
+            console.warn('Refresh error details:', refreshErrorData);
+          }
+        } catch (refreshError) {
+          // If refresh fails, clear tokens and throw original error
+          console.warn('❌ Token refresh failed with exception:', refreshError);
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+        }
+      }
+      
       throw new ApiError(
         data.message || data.error || `HTTP ${response.status}`,
         response.status,
@@ -72,8 +118,17 @@ export const authAPI = {
     });
     
     if (data.token) {
+      // Store legacy token for backwards compatibility
       localStorage.setItem('authToken', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Store new token format if available
+      if (data.accessToken) {
+        localStorage.setItem('accessToken', data.accessToken);
+      }
+      if (data.refreshToken) {
+        localStorage.setItem('refreshToken', data.refreshToken);
+      }
     }
     
     return data;
@@ -86,8 +141,17 @@ export const authAPI = {
     });
     
     if (data.token) {
+      // Store legacy token for backwards compatibility
       localStorage.setItem('authToken', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Store new token format if available
+      if (data.accessToken) {
+        localStorage.setItem('accessToken', data.accessToken);
+      }
+      if (data.refreshToken) {
+        localStorage.setItem('refreshToken', data.refreshToken);
+      }
     }
     
     return data;
@@ -95,6 +159,8 @@ export const authAPI = {
 
   logout: () => {
     localStorage.removeItem('authToken');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
   },
 
@@ -104,7 +170,50 @@ export const authAPI = {
   },
 
   isAuthenticated: () => {
-    return !!localStorage.getItem('authToken');
+    return !!localStorage.getItem('authToken') || !!localStorage.getItem('accessToken');
+  },
+
+  getToken: () => {
+    return localStorage.getItem('accessToken') || localStorage.getItem('authToken');
+  },
+
+  // Refresh access token using refresh token
+  refreshAccessToken: async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    try {
+      const data = await makeRequest('/auth/refresh', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (data.token) {
+        // Update all token formats
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        if (data.accessToken) {
+          localStorage.setItem('accessToken', data.accessToken);
+        }
+        if (data.refreshToken) {
+          localStorage.setItem('refreshToken', data.refreshToken);
+        }
+      }
+
+      return data;
+    } catch (error) {
+      // If refresh fails, clear all tokens
+      authAPI.logout();
+      throw error;
+    }
+  },
+
+  // Get current access token (prefers new format, falls back to legacy)
+  getAccessToken: () => {
+    return localStorage.getItem('accessToken') || localStorage.getItem('authToken');
   }
 };
 
@@ -215,6 +324,11 @@ export const usersAPI = {
 export const documentsAPI = {
   // Upload documents to a claim
   uploadDocuments: async (claimId, files, category = 'other', description = '') => {
+    // Add error checking for files parameter
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      throw new Error('No files provided for upload');
+    }
+    
     const formData = new FormData();
     
     // Add files to FormData

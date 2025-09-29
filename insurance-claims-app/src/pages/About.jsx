@@ -1,3 +1,6 @@
+import WebSocketTest from '../components/WebSocketTest';
+import AdminTestPanel from '../components/AdminTestPanel';
+
 export default function About() {
   const features = [
     {
@@ -143,6 +146,12 @@ export default function About() {
             View Dashboard
           </a>
         </div>
+      </div>
+
+      {/* WebSocket Testing Panel - Development Only */}
+      <div className="max-w-4xl mx-auto space-y-6">
+        <AdminTestPanel />
+        <WebSocketTest />
       </div>
     </div>
   );

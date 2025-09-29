@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react';
 import { useClaims, useAuth } from '../contexts/AppContext.jsx';
+import { documentsAPI } from '../services/api.js';
 
 export default function ClaimSubmission() {
   const [form, setForm] = useState({
@@ -40,6 +41,14 @@ export default function ClaimSubmission() {
         claimType: 'vehicle_accident'
       };
 
+      // Validate damage amount
+      if (claimData.damageAmount > 99999999.99) {
+        throw new Error('Damage amount cannot exceed $99,999,999.99');
+      }
+      if (claimData.damageAmount < 0.01) {
+        throw new Error('Damage amount must be at least $0.01');
+      }
+
       console.log('Sending claim data:', claimData);
       
       const newClaim = await createClaim(claimData);
@@ -59,17 +68,51 @@ export default function ClaimSubmission() {
       });
       
       console.log('Claim submitted successfully:', newClaim);
+      
+      // Upload document if provided
+      if (form.file && newClaim) {
+        try {
+          // Extract claim ID from response structure
+          const claimId = newClaim.claim?.id || newClaim.id;
+          console.log('Uploading document for claim:', claimId);
+          console.log('File details:', {
+            name: form.file.name,
+            size: form.file.size,
+            type: form.file.type
+          });
+          
+          await documentsAPI.uploadDocuments(
+            claimId,
+            [form.file],
+            'other',
+            'Document uploaded during claim submission'
+          );
+          
+          console.log('Document uploaded successfully');
+        } catch (uploadError) {
+          console.error('Error uploading document:', uploadError);
+          console.error('Upload error details:', {
+            message: uploadError.message,
+            status: uploadError.status,
+            data: uploadError.data
+          });
+          
+          // Show error to user but don't fail the whole claim submission
+          alert(`Claim created successfully, but document upload failed: ${uploadError.message}. You can upload documents later from the claim documents page.`);
+        }
+      }
+      
       // Extract claim number from response structure
       const claimNumber = newClaim.claim?.claimNumber || newClaim.claimNumber || 'N/A';
-      alert(`Claim submitted successfully! Claim #${claimNumber}. Redirecting to your claims...`);
+      const message = form.file ? 
+        `Claim and document submitted successfully! Claim #${claimNumber}. Redirecting to your claims...` :
+        `Claim submitted successfully! Claim #${claimNumber}. Redirecting to your claims...`;
+      
+      alert(message);
       
       setTimeout(() => {
         window.location.href = '/claims';
       }, 2000);
-      
-      if (form.file && newClaim) {
-        // TODO: Upload documents after claim is created
-      }
       
     } catch (error) {
       console.error('Error submitting claim:', error);
@@ -232,10 +275,11 @@ export default function ClaimSubmission() {
                 value={form.damageAmount}
                 onChange={handleChange}
                 required
-                min="0"
+                min="0.01"
+                max="99999999.99"
                 step="0.01"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                placeholder="Enter amount in USD"
+                placeholder="Enter amount in USD (max: $99,999,999.99)"
               />
             </div>
           </div>

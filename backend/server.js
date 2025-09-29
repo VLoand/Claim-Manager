@@ -26,7 +26,7 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || ["http://localhost:5173", "http://localhost:5174"],
+    origin: process.env.FRONTEND_URL || /^http:\/\/localhost:\d+$/,
     methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
@@ -44,7 +44,7 @@ const limiter = rateLimit({
 app.use(helmet());
 app.use(limiter);
 app.use(cors({
-  origin: process.env.FRONTEND_URL || ["http://localhost:5173", "http://localhost:5174"],
+  origin: process.env.FRONTEND_URL || /^http:\/\/localhost:\d+$/,
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -67,11 +67,17 @@ const provideDefaultUser = (req, res, next) => {
   next();
 };
 
+// Middleware to pass socket.io instance to routes
+const attachSocketIO = (req, res, next) => {
+  req.io = io;
+  next();
+};
+
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/claims', provideDefaultUser, claimsRoutes);
-app.use('/api/users', provideDefaultUser, usersRoutes);
-app.use('/api', provideDefaultUser, documentsRoutes);
+app.use('/api/claims', provideDefaultUser, attachSocketIO, claimsRoutes);
+app.use('/api/users', provideDefaultUser, attachSocketIO, usersRoutes);
+app.use('/api', provideDefaultUser, attachSocketIO, documentsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

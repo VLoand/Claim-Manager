@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAppContext } from '../contexts/AppContext';
+import { useAuth } from '../contexts/AppContext';
 import DocumentUpload from '../components/DocumentUpload';
 import DocumentList from '../components/DocumentList';
 import { claimsAPI } from '../services/api';
 
 export default function ClaimDocuments() {
-  const { claimId } = useParams();
+  const { id: claimId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const [claim, setClaim] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -23,10 +23,13 @@ export default function ClaimDocuments() {
     try {
       setLoading(true);
       const data = await claimsAPI.getClaim(claimId);
-      setClaim(data);
+      console.log('Claim data loaded:', data);
+      // Extract the actual claim data from the nested structure
+      const claimData = data.claim || data;
+      setClaim(claimData);
       
       // Check if user has access to this claim
-      if (user.role !== 'admin' && data.userId !== user.id) {
+      if (user && user.role !== 'admin' && claimData.user_id !== user.id) {
         setError('You do not have permission to access this claim.');
         return;
       }
@@ -39,7 +42,9 @@ export default function ClaimDocuments() {
   };
 
   const handleUploadComplete = (result) => {
-    setSuccess(`Successfully uploaded ${result.uploadedFiles.length} document(s)`);
+    // Backend returns { documents: [...] }, not { uploadedFiles: [...] }
+    const uploadedCount = result.documents ? result.documents.length : 0;
+    setSuccess(`Successfully uploaded ${uploadedCount} document(s)`);
     setError('');
     setRefreshTrigger(prev => prev + 1);
     
@@ -94,10 +99,10 @@ export default function ClaimDocuments() {
               {error || 'You do not have permission to access this claim.'}
             </p>
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/claims')}
               className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              Back to Dashboard
+              Back to Claims
             </button>
           </div>
         </div>
@@ -113,13 +118,13 @@ export default function ClaimDocuments() {
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/claims')}
                 className="text-gray-500 hover:text-gray-700 flex items-center space-x-1"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
-                <span>Back to Dashboard</span>
+                <span>Back to Claims</span>
               </button>
               
               <div className="h-6 w-px bg-gray-300"></div>
@@ -129,14 +134,14 @@ export default function ClaimDocuments() {
                   Claim Documents
                 </h1>
                 <p className="text-sm text-gray-600">
-                  Claim #{claim.claimNumber} - {claim.incidentType}
+                  Claim #{claim.claim_number || 'N/A'} - Vehicle Accident
                 </p>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(claim.status)}`}>
-                {claim.status.charAt(0).toUpperCase() + claim.status.slice(1).replace('_', ' ')}
+                {claim.status ? claim.status.charAt(0).toUpperCase() + claim.status.slice(1).replace('_', ' ') : 'Unknown'}
               </span>
             </div>
           </div>
@@ -204,21 +209,21 @@ export default function ClaimDocuments() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <p className="text-sm font-medium text-gray-700">Claim Number</p>
-              <p className="text-sm text-gray-900">{claim.claimNumber}</p>
+              <p className="text-sm text-gray-900">{claim.claim_number}</p>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-700">Incident Type</p>
-              <p className="text-sm text-gray-900">{claim.incidentType}</p>
+              <p className="text-sm font-medium text-gray-700">Vehicle Type</p>
+              <p className="text-sm text-gray-900">{claim.vehicle_type || 'N/A'}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-gray-700">Incident Date</p>
               <p className="text-sm text-gray-900">
-                {new Date(claim.incidentDate).toLocaleDateString()}
+                {claim.accident_date ? new Date(claim.accident_date).toLocaleDateString() : 'N/A'}
               </p>
             </div>
             <div className="md:col-span-3">
               <p className="text-sm font-medium text-gray-700">Description</p>
-              <p className="text-sm text-gray-900">{claim.description}</p>
+              <p className="text-sm text-gray-900">{claim.accident_description || 'No description provided'}</p>
             </div>
           </div>
         </div>

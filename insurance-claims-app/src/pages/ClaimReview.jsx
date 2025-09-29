@@ -112,6 +112,20 @@ export default function ClaimReview() {
           </div>
         </div>
 
+        <div className="bg-white rounded-lg shadow-xl border border-blue-100 p-6 transform hover:scale-105 transition-all">
+          <div className="flex items-center">
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full p-3 shadow-lg">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Processing</p>
+              <p className="text-2xl font-bold text-blue-600">{claimStats.processing}</p>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white rounded-lg shadow-xl border border-green-100 p-6 transform hover:scale-105 transition-all">
           <div className="flex items-center">
             <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-full p-3 shadow-lg">
@@ -143,6 +157,36 @@ export default function ClaimReview() {
 
       {/* Filters and Search */}
       <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 mb-8">
+        {/* Filter Buttons */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {[
+            { key: 'all', label: 'All', count: claimStats?.total || 0 },
+            { key: 'pending', label: 'Pending', count: claimStats?.pending || 0 },
+            { key: 'processing', label: 'Processing', count: claimStats?.processing || 0 },
+            { key: 'approved', label: 'Approved', count: claimStats?.approved || 0 },
+            { key: 'rejected', label: 'Rejected', count: claimStats?.rejected || 0 }
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setFilter(tab.key)}
+              className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2 ${
+                filter === tab.key
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span className={`px-2 py-1 text-xs rounded-full ${
+                filter === tab.key
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-300 text-gray-600'
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Search */}
           <div className="flex-1">
@@ -170,11 +214,11 @@ export default function ClaimReview() {
               className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[150px]"
             >
               <option value="all">All Status</option>
-              <option value="submitted">Submitted</option>
-              <option value="reviewed">Reviewed</option>
-              <option value="in progress">In Progress</option>
+              <option value="pending">Pending</option>
+              <option value="processing">Processing</option>
+              <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
-              <option value="paid out">Paid Out</option>
+              <option value="completed">Completed</option>
             </select>
           </div>
 

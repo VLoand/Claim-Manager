@@ -1,7 +1,8 @@
-import { useClaims } from '../contexts/AppContext.jsx';
+import { useClaims, useAuth } from '../contexts/AppContext.jsx';
 
 export default function ClaimCard({ claim }) {
   const { updateClaimStatus } = useClaims();
+  const { user } = useAuth();
   const getStatusColor = (status) => {
     const colors = {
       'submitted': 'bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-800 border-amber-200 shadow-amber-100',
@@ -106,21 +107,23 @@ export default function ClaimCard({ claim }) {
             <span>Documents</span>
           </a>
 
-          {/* Status Selector */}
-          <div className="flex flex-col items-end space-y-2">
-            <label className="text-sm font-medium text-gray-700">Update Status:</label>
-            <select
-              className="bg-white border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all min-w-[150px]"
-              value={claim.status}
-              onChange={e => updateClaimStatus(claim.id, e.target.value)}
-            >
-              <option value="submitted">📝 Submitted</option>
-              <option value="pending">⏳ Pending</option>
-              <option value="under_review">👀 Under Review</option>
-              <option value="approved">✅ Approved</option>
-              <option value="rejected">❌ Rejected</option>
-            </select>
-          </div>
+          {/* Status Selector - Admin Only */}
+          {user?.role === 'admin' && (
+            <div className="flex flex-col items-end space-y-2">
+              <label className="text-sm font-medium text-gray-700">Update Status:</label>
+              <select
+                className="bg-white border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all min-w-[150px]"
+                value={claim.status}
+                onChange={e => updateClaimStatus(claim.id, e.target.value)}
+              >
+                <option value="pending">⏳ Pending</option>
+                <option value="processing">🔄 Processing</option>
+                <option value="approved">✅ Approved</option>
+                <option value="rejected">❌ Rejected</option>
+                <option value="completed">✅ Completed</option>
+              </select>
+            </div>
+          )}
         </div>
       </div>
 

@@ -15,7 +15,9 @@ const createClaimValidation = [
   body('accidentDate').isISO8601().toDate().withMessage('Valid accident date is required'),
   body('accidentLocation').trim().isLength({ min: 5 }).withMessage('Accident location is required'),
   body('accidentDescription').trim().isLength({ min: 10 }).withMessage('Accident description must be at least 10 characters'),
-  body('damageAmount').isNumeric().withMessage('Damage amount must be a number'),
+  body('damageAmount')
+    .isNumeric().withMessage('Damage amount must be a number')
+    .isFloat({ min: 0.01, max: 99999999.99 }).withMessage('Damage amount must be between $0.01 and $99,999,999.99'),
 ];
 
 // Generate unique claim number
@@ -81,7 +83,7 @@ router.post('/', createClaimValidation, async (req, res) => {
     `, [
       req.user.id, claimNumber, fullName, dateOfBirth, nationality,
       vehicleType, insuranceCompany, accidentDate, accidentLocation,
-      accidentDescription, damageAmount, 'submitted'
+      accidentDescription, damageAmount, 'pending'
     ]);
 
     const claim = result.rows[0];
@@ -89,16 +91,20 @@ router.post('/', createClaimValidation, async (req, res) => {
     // Add to status history
     await query(
       'INSERT INTO claim_status_history (claim_id, new_status, changed_by) VALUES ($1, $2, $3)',
-      [claim.id, 'submitted', req.user.id]
+      [claim.id, 'pending', req.user.id]
     );
 
-    // Emit real-time notification to admins
-    req.io.emit('new-claim', {
-      claimId: claim.id,
-      claimNumber: claim.claim_number,
-      submittedBy: fullName,
-      message: `New claim ${claim.claim_number} submitted by ${fullName}`
-    });
+    // Emit real-time notification for new claim
+    if (req.io) {
+      req.io.emit('claim-created', {
+        claim: claim,
+        claimId: claim.id,
+        claimNumber: claim.claim_number,
+        submittedBy: fullName,
+        message: `New claim ${claim.claim_number} submitted by ${fullName}`
+      });
+      console.log(`🆕 Emitted claim-created event for claim ${claim.claim_number}`);
+    }
 
     res.status(201).json({
       message: 'Claim created successfully',
@@ -284,7 +290,7 @@ router.patch('/:id/status', authorizeRoles('admin'), async (req, res) => {
     const { id } = req.params;
     const { status, comment } = req.body;
 
-    const validStatuses = ['submitted', 'reviewed', 'in progress', 'rejected', 'paid out'];
+    const validStatuses = ['pending', 'processing', 'approved', 'rejected', 'completed'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         error: 'Invalid status',
@@ -317,14 +323,24 @@ router.patch('/:id/status', authorizeRoles('admin'), async (req, res) => {
       [id, oldStatus, status, req.user.id, comment]
     );
 
-    // Emit real-time notification to claim owner
-    req.io.to(`user-${updatedClaim.user_id}`).emit('claim-status-updated', {
-      claimId: id,
-      claimNumber: updatedClaim.claim_number,
-      oldStatus,
-      newStatus: status,
-      message: `Your claim ${updatedClaim.claim_number} status has been updated to ${status}`
-    });
+    // Emit real-time notification to claim owner and all connected clients
+    if (req.io) {
+      const eventData = {
+        claimId: id,
+        claimNumber: updatedClaim.claim_number,
+        status: status,
+        oldStatus,
+        message: `Claim ${updatedClaim.claim_number} status updated to ${status}`
+      };
+      
+      // Send to specific user room
+      req.io.to(`user-${updatedClaim.user_id}`).emit('claim-status-updated', eventData);
+      
+      // Also broadcast to all connected clients (for admins/dashboard updates)
+      req.io.emit('claim-status-updated', eventData);
+      
+      console.log(`🔄 Emitted claim-status-updated for claim ${updatedClaim.claim_number}: ${oldStatus} → ${status}`);
+    }
 
     res.json({
       message: 'Claim status updated successfully',

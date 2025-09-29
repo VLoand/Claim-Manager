@@ -24,10 +24,12 @@ export default function DocumentList({ claimId, refreshTrigger, onError }) {
     try {
       setLoading(true);
       const data = await documentsAPI.getClaimDocuments(claimId);
-      setDocuments(data);
+      // Backend returns { documents: [...] }, extract the array
+      setDocuments(Array.isArray(data) ? data : (data.documents || []));
     } catch (error) {
       onError && onError('Failed to load documents');
       console.error('Error loading documents:', error);
+      setDocuments([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
@@ -35,16 +37,22 @@ export default function DocumentList({ claimId, refreshTrigger, onError }) {
 
   const loadCategories = async () => {
     try {
-      const data = await documentsAPI.getCategories(claimId);
-      setCategories(data);
+      // Calculate category counts from existing documents
+      const categoryCounts = {};
+      documents.forEach(doc => {
+        const category = doc.category || 'other';
+        categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+      });
+      setCategories(categoryCounts);
     } catch (error) {
       console.error('Error loading categories:', error);
+      setCategories({});
     }
   };
 
   const handleDownload = async (document) => {
     try {
-      await documentsAPI.downloadDocument(document._id);
+      await documentsAPI.downloadDocument(document.id);
     } catch (error) {
       onError && onError(`Failed to download ${document.originalName}`);
       console.error('Error downloading document:', error);
@@ -57,11 +65,11 @@ export default function DocumentList({ claimId, refreshTrigger, onError }) {
     }
 
     try {
-      setDeleting(document._id);
-      await documentsAPI.deleteDocument(document._id);
+      setDeleting(document.id);
+      await documentsAPI.deleteDocument(document.id);
       
       // Remove from local state
-      setDocuments(prev => prev.filter(doc => doc._id !== document._id));
+      setDocuments(prev => prev.filter(doc => doc.id !== document.id));
       
       // Reload categories to update counts
       loadCategories();
@@ -174,10 +182,10 @@ export default function DocumentList({ claimId, refreshTrigger, onError }) {
       ) : (
         <div className="space-y-4">
           {filteredDocuments.map((document) => (
-            <div key={document._id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+            <div key={document.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
               <div className="flex items-start space-x-4">
                 <div className="flex-shrink-0">
-                  {getFileIcon(document.mimeType)}
+                  {getFileIcon(document.fileType)}
                 </div>
                 
                 <div className="flex-1 min-w-0">
@@ -190,7 +198,7 @@ export default function DocumentList({ claimId, refreshTrigger, onError }) {
                         <span className="capitalize">
                           {categoryLabels[document.category] || document.category}
                         </span>
-                        <span>{formatFileSize(document.size)}</span>
+                        <span>{formatFileSize(document.fileSize)}</span>
                         <span>Uploaded {formatDate(document.uploadDate)}</span>
                       </div>
                       {document.description && (
@@ -215,11 +223,11 @@ export default function DocumentList({ claimId, refreshTrigger, onError }) {
                       {/* Delete Button */}
                       <button
                         onClick={() => handleDelete(document)}
-                        disabled={deleting === document._id}
+                        disabled={deleting === document.id}
                         className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
                         title="Delete document"
                       >
-                        {deleting === document._id ? (
+                        {deleting === document.id ? (
                           <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
