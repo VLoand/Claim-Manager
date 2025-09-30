@@ -8,6 +8,7 @@ import ClaimSubmission from './pages/ClaimSubmission';
 import ClaimsDashboard from './pages/ClaimsDashboard';
 import ClaimReview from './pages/ClaimReview';
 import ClaimDocuments from './pages/ClaimDocuments';
+// import ServicesDashboard from './pages/ServicesDashboard'; // SERVICES CRUD - Uncomment for exam
 import About from './pages/About';
 import RefreshTokenTest from './components/RefreshTokenTest';
 
@@ -89,6 +90,11 @@ function App() {
                     <a href="/submit-claim" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium">
                       Submit Claim
                     </a>
+                    {/* SERVICES CRUD - Uncomment for exam
+                    <a href="/services" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium">
+                      Services
+                    </a>
+                    */}
                     <a href="/about" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium">
                       About
                     </a>
@@ -108,6 +114,9 @@ function App() {
                 <Route path="/claims" element={<ProtectedRoute><ClaimsDashboard /></ProtectedRoute>} />
                 <Route path="/submit-claim" element={<ProtectedRoute><ClaimSubmission /></ProtectedRoute>} />
                 <Route path="/claim/:id/documents" element={<ProtectedRoute><ClaimDocuments /></ProtectedRoute>} />
+                {/* SERVICES CRUD - Uncomment for exam
+                <Route path="/services" element={<ProtectedRoute><ServicesDashboard /></ProtectedRoute>} />
+                */}
                 <Route path="/about" element={<About />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/test-tokens" element={<RefreshTokenTest />} />

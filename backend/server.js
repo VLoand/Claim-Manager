@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.js';
 import claimsRoutes from './routes/claims.js';
 import usersRoutes from './routes/users.js';
 import documentsRoutes from './routes/documents.js';
+// import servicesRoutes from './routes/services.js'; // SERVICES CRUD - Uncomment for exam
 
 // Import database connections
 import { connectPostgreSQL } from './config/postgres.js';
@@ -77,6 +78,7 @@ const attachSocketIO = (req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/claims', provideDefaultUser, attachSocketIO, claimsRoutes);
 app.use('/api/users', provideDefaultUser, attachSocketIO, usersRoutes);
+// app.use('/api/services', provideDefaultUser, attachSocketIO, servicesRoutes); // SERVICES CRUD - Uncomment for exam
 app.use('/api', provideDefaultUser, attachSocketIO, documentsRoutes);
 
 // Health check endpoint

@@ -403,6 +403,44 @@ export const documentsAPI = {
   }
 };
 
+// SERVICES CRUD - Uncomment for exam
+/*
+export const servicesAPI = {
+  // Get all services
+  getAll: async () => {
+    return await makeRequest('/services');
+  },
+
+  // Get single service by ID
+  getById: async (id) => {
+    return await makeRequest(`/services/${id}`);
+  },
+
+  // Create new service
+  create: async (serviceData) => {
+    return await makeRequest('/services', {
+      method: 'POST',
+      body: JSON.stringify(serviceData)
+    });
+  },
+
+  // Update existing service
+  update: async (id, serviceData) => {
+    return await makeRequest(`/services/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(serviceData)
+    });
+  },
+
+  // Delete service
+  delete: async (id) => {
+    return await makeRequest(`/services/${id}`, {
+      method: 'DELETE'
+    });
+  }
+};
+*/
+
 // Health check
 export const healthAPI = {
   check: async () => {
@@ -419,5 +457,6 @@ export default {
   claims: claimsAPI,
   users: usersAPI,
   documents: documentsAPI,
+  // services: servicesAPI, // SERVICES CRUD - Uncomment for exam
   health: healthAPI,
 };
